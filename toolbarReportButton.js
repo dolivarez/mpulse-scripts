@@ -1,6 +1,6 @@
 // =============================
 // 📄 MPulse Work Order Report Button Injector (PDF clean link only)
-// Version: 2025.10.23c
+// Version: 2025.10.26 – dynamic task column parsing
 // =============================
 (async () => {
   console.log("📄 toolbarReportButton.js initialized");
@@ -42,27 +42,35 @@
         : "<p>(No comments found)</p>";
     })();
 
+    // === DYNAMIC TABLE PARSER ===
     const parseGrid = (rootSel, isTask = false) => {
-      const c = document.querySelector(rootSel);
-      if (!c) return { headers: [], rows: [] };
-      const rows = [...c.querySelectorAll(".dx-row:not(.dx-header-row):not(.dx-group-row)")];
+      const root = document.querySelector(rootSel);
+      if (!root) return { headers: [], rows: [] };
+      const headers = [...root.querySelectorAll(".dx-header-row td")].map(td => norm(td.innerText)).filter(Boolean);
+      const rows = [...root.querySelectorAll(".dx-row:not(.dx-header-row):not(.dx-group-row)")];
+      if (!headers.length || !rows.length) return { headers: [], rows: [] };
+
+      // For task rows: find the description column dynamically
       if (isTask) {
-        const r = rows
+        const descIndex = headers.findIndex(h => h.toLowerCase().includes("description"));
+        if (descIndex === -1) return { headers: [], rows: [] };
+        const taskRows = rows
           .map(tr => {
-            const d = tr.querySelector("td:nth-child(4) div");
-            return [d ? norm(d.innerText) : ""];
+            const tds = tr.querySelectorAll("td");
+            const cell = tds[descIndex];
+            return cell ? [norm(cell.innerText)] : null;
           })
-          .filter(r => r[0]);
-        return { headers: ["Description"], rows: r };
+          .filter(r => r && r[0]);
+        return { headers: ["Description"], rows: taskRows };
       }
-      const headers = [...c.querySelectorAll(".dx-header-row td")].map(td => norm(td.innerText)).filter(Boolean);
-      const data = rows
+
+      // For other tables (asset, personnel): include all visible columns
+      const dataRows = rows
         .map(tr => [...tr.querySelectorAll("td")].map(td => norm(td.innerText)).filter(Boolean))
         .filter(r => r.length);
-      return { headers, rows: data };
+      return { headers, rows: dataRows };
     };
 
-    // Extract media link (SharePoint URL)
     const mediaData = Array.from(document.querySelectorAll(".media_check"))
       .map(el => angular.element(el).scope()?.mediadetails)
       .find(md => md && md.FileType?.toLowerCase() === "url");
@@ -75,6 +83,7 @@
       due: get("#Due"),
       done: get("#DateDone"),
     };
+
     const tasks = parseGrid("#TaskList", true);
     const assets = parseGrid("#AssetList");
     const people = parseGrid("#PersonalList");
@@ -89,7 +98,7 @@
             </table>
           </div>`;
 
-    // Remove existing overlay if open
+    // Clear old overlay
     const old = document.getElementById("reportOverlay");
     if (old) old.remove();
 
@@ -144,15 +153,11 @@
         <img src="https://mpulse9.com//Media/GetMenuImage?DBName=SOFIE&ImageType=LOGOLG&ImageName=Sofie%20Logo.png" style="height:50px;">
       </div>`;
 
-    // Media section ABOVE buttons
     const mediaSection = mediaData
-      ? `
-        <h3 style="margin-top:16px;">Media</h3>
-        <div style="border:1px solid #ccc;border-radius:6px;padding:10px;margin-bottom:12px;">
-          <a href="${mediaData.FileName}" target="_blank" style="color:#0078d7;text-decoration:underline;font-size:16px;">
-            View Linked Media
-          </a>
-        </div>`
+      ? `<h3 style="margin-top:16px;">Media</h3>
+         <div style="border:1px solid #ccc;border-radius:6px;padding:10px;margin-bottom:12px;">
+            <a href="${mediaData.FileName}" target="_blank" style="color:#0078d7;text-decoration:underline;font-size:16px;">View Linked Media</a>
+         </div>`
       : "";
 
     const body = `
@@ -192,7 +197,6 @@
     document.getElementById("closeReport").onclick = closeOverlay;
     document.addEventListener("keydown", e => e.key === "Escape" && closeOverlay(), { once: true });
 
-    // Load jsPDF + html2canvas
     if (!window.jspdf) {
       await Promise.all([
         new Promise((res, rej) => {
@@ -208,7 +212,6 @@
       ]);
     }
 
-    // 📄 PDF generation
     document.getElementById("downloadPdf").onclick = async () => {
       const { jsPDF } = window.jspdf;
       const toHide = [closeX, document.getElementById("closeReport"), document.getElementById("downloadPdf")];
@@ -221,7 +224,6 @@
       const height = (canvas.height * width) / canvas.width;
       pdf.addImage(img, "PNG", 0, 0, width, height);
 
-      // Only the text "View Linked Media" as a clickable link
       if (mediaData) {
         pdf.setFontSize(12);
         pdf.setTextColor(0, 102, 204);
@@ -262,5 +264,3 @@
   new MutationObserver(() => addReportButton())
     .observe(document.body, { childList: true, subtree: true });
 })();
-
-
