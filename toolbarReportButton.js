@@ -197,12 +197,12 @@
       await Promise.all([
         new Promise((res, rej) => {
           const s = document.createElement("script");
-          s.src = "https://zevacor365.sharepoint.com/sites/MpulseDevTeam/Scripts/dev/jspdf.umd.min.js";
+          s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
           s.onload = res; s.onerror = rej; document.head.appendChild(s);
         }),
         new Promise((res, rej) => {
           const s = document.createElement("script");
-          s.src = "https://zevacor365.sharepoint.com/sites/MpulseDevTeam/Scripts/dev/html2canvas.min.js";
+          s.src = "hhttps://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
           s.onload = res; s.onerror = rej; document.head.appendChild(s);
         })
       ]);
