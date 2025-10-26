@@ -202,7 +202,7 @@
         }),
         new Promise((res, rej) => {
           const s = document.createElement("script");
-          s.src = "hhttps://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+          s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
           s.onload = res; s.onerror = rej; document.head.appendChild(s);
         })
       ]);
@@ -262,3 +262,4 @@
   new MutationObserver(() => addReportButton())
     .observe(document.body, { childList: true, subtree: true });
 })();
+
