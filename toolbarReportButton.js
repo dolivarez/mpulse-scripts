@@ -44,25 +44,36 @@
 
     // === DYNAMIC TABLE PARSER ===
     const parseGrid = (rootSel, isTask = false) => {
-      const root = document.querySelector(rootSel);
-      if (!root) return { headers: [], rows: [] };
-      const headers = [...root.querySelectorAll(".dx-header-row td")].map(td => norm(td.innerText)).filter(Boolean);
-      const rows = [...root.querySelectorAll(".dx-row:not(.dx-header-row):not(.dx-group-row)")];
-      if (!headers.length || !rows.length) return { headers: [], rows: [] };
+    const c = document.querySelector(rootSel);
+    if (!c) return { headers: [], rows: [] };
 
-      // For task rows: find the description column dynamically
-      if (isTask) {
-        const descIndex = headers.findIndex(h => h.toLowerCase().includes("description"));
-        if (descIndex === -1) return { headers: [], rows: [] };
-        const taskRows = rows
-          .map(tr => {
-            const tds = tr.querySelectorAll("td");
-            const cell = tds[descIndex];
-            return cell ? [norm(cell.innerText)] : null;
-          })
-          .filter(r => r && r[0]);
-        return { headers: ["Description"], rows: taskRows };
-      }
+    const headerEls = [...c.querySelectorAll(".dx-header-row td")];
+    const headers = headerEls.map(td => td.innerText.trim());
+    const rows = [...c.querySelectorAll(".dx-row:not(.dx-header-row):not(.dx-group-row)")];
+
+    if (isTask) {
+      const idIndex = headers.findIndex(h => h.toLowerCase().includes("id"));
+      const descIndex = headers.findIndex(h => h.toLowerCase().includes("description"));
+  
+      if (idIndex === -1 || descIndex === -1) return { headers: [], rows: [] };
+  
+      const taskRows = rows
+        .map(tr => {
+          const cells = [...tr.querySelectorAll("td")];
+          const id = cells[idIndex]?.innerText.trim() || "";
+          const desc = cells[descIndex]?.innerText.trim() || "";
+          return [id, desc];
+        })
+        .filter(r => r.some(cell => cell)); // remove empty rows
+  
+      return { headers: ["Task ID#", "Description"], rows: taskRows };
+  }
+
+  const data = rows
+    .map(tr => [...tr.querySelectorAll("td")].map(td => td.innerText.trim()))
+    .filter(r => r.length);
+  return { headers, rows: data };
+};
 
       // For other tables (asset, personnel): include all visible columns
       const dataRows = rows
@@ -264,3 +275,4 @@
   new MutationObserver(() => addReportButton())
     .observe(document.body, { childList: true, subtree: true });
 })();
+
