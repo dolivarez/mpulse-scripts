@@ -1,278 +1,135 @@
-// =============================
-// 📄 MPulse Work Order Report Button Injector (PDF clean link only)
-// Version: 2025.10.26 – dynamic task column parsing
-// =============================
-(async () => {
-  console.log("📄 toolbarReportButton.js initialized");
+(function () {
+  async function init() {
+    console.log("📄 toolbarReportButton.js initialized");
 
-  const findToolbar = () => document.querySelector(".action-menu-items ul.itemDetailActionBtns");
-  async function waitForToolbar(timeout = 15000) {
-    const start = Date.now();
-    return new Promise((resolve, reject) => {
+    // Utility: normalize text content
+    const norm = s => (s || '').replace(/\s+/g, ' ').trim();
+    const getText = sel => {
+      const el = document.querySelector(sel);
+      if (!el) return '—';
+      let text = el.innerText.trim();
+      if (!text) {
+        const input = el.querySelector('input,textarea,.dx-texteditor-input,.dx-textbox-input');
+        if (input) text = input.value || input.textContent || '';
+      }
+      if (!text) {
+        const val = el.querySelector('.dx-field-value,.dx-text-content-alignment-left');
+        if (val) text = val.innerText.trim();
+      }
+      return text || '—';
+    };
+
+    // Dynamic table parser
+    const parseGrid = (rootSel, includeHeaders = true, filterCols = null) => {
+      const root = document.querySelector(rootSel);
+      if (!root) return { headers: [], rows: [] };
+      const headersRaw = [...root.querySelectorAll(".dx-header-row td")];
+      const headers = headersRaw.map(td => norm(td.innerText));
+      const colIndexes = filterCols
+        ? headers.map((h, i) => (filterCols.some(f => h.includes(f)) ? i : -1)).filter(i => i >= 0)
+        : headers.map((_, i) => i);
+
+      const rows = [...root.querySelectorAll(".dx-row:not(.dx-header-row):not(.dx-group-row)")].map(tr => {
+        const cells = [...tr.querySelectorAll("td")];
+        return colIndexes.map(i => norm(cells[i]?.innerText || ""));
+      }).filter(r => r.some(cell => cell));
+
+      return {
+        headers: includeHeaders ? colIndexes.map(i => headers[i]) : [],
+        rows
+      };
+    };
+
+    const waitForToolbar = (timeout = 15000) => new Promise((resolve, reject) => {
+      const start = Date.now();
       (function check() {
-        const el = findToolbar();
+        const el = document.querySelector(".action-menu-items ul.itemDetailActionBtns");
         if (el) return resolve(el);
         if (Date.now() - start > timeout) return reject("Toolbar not found");
         requestAnimationFrame(check);
       })();
     });
-  }
 
-  async function generateReport() {
-    const norm = s => (s || "").replace(/\s+/g, " ").trim();
-    const get = sel => {
-      const el = document.querySelector(sel);
-      if (!el) return "—";
-      let text = el.innerText.trim();
-      if (!text) {
-        const input = el.querySelector("input,textarea,.dx-texteditor-input,.dx-textbox-input");
-        if (input) text = input.value || input.textContent || "";
-      }
-      if (!text) {
-        const val = el.querySelector(".dx-field-value,.dx-text-content-alignment-left");
-        if (val) text = val.innerText.trim();
-      }
-      return text || "—";
+    const detectRecordType = () => {
+      const el = document.querySelector(".module-name");
+      return el?.textContent?.trim().toLowerCase() || "unknown";
     };
 
-    const comments = (() => {
-      const el = document.querySelector(".dx-scrollview-content .ng-binding");
-      return el
-        ? el.innerHTML.replace(/&nbsp;/g, " ").replace(/\s{2,}/g, " ").trim()
-        : "<p>(No comments found)</p>";
-    })();
+    async function generateReport() {
+      const type = detectRecordType();
+      const data = {
+        id: getText("#ID"),
+        desc: getText("#Description"),
+        status: getText("#StatusDesc"),
+        open: getText("#Open"),
+        due: getText("#Due"),
+        done: getText("#DateDone"),
+        comments: (() => {
+          const el = document.querySelector(".dx-scrollview-content .ng-binding");
+          return el?.innerHTML?.replace(/&nbsp;/g, " ").replace(/\s{2,}/g, " ").trim() || "(No comments found)";
+        })(),
+      };
 
-    // === DYNAMIC TABLE PARSER ===
-    const parseGrid = (rootSel, isTask = false) => {
-    const c = document.querySelector(rootSel);
-    if (!c) return { headers: [], rows: [] };
+      const tasks = type.includes("work order") ? parseGrid("#TaskList", true, ["ID", "Description"]) : null;
+      const assets = ["work order", "scheduled maintenance"].some(t => type.includes(t)) ? parseGrid("#AssetList") : null;
+      const people = ["work order", "scheduled maintenance"].some(t => type.includes(t)) ? parseGrid("#PersonalList") : null;
 
-    const headerEls = [...c.querySelectorAll(".dx-header-row td")];
-    const headers = headerEls.map(td => td.innerText.trim());
-    const rows = [...c.querySelectorAll(".dx-row:not(.dx-header-row):not(.dx-group-row)")];
+      const mediaData = Array.from(document.querySelectorAll(".media_check"))
+        .map(el => angular.element(el).scope()?.mediadetails)
+        .find(md => md?.FileType?.toLowerCase() === "url");
 
-    if (isTask) {
-      const idIndex = headers.findIndex(h => h.toLowerCase().includes("id"));
-      const descIndex = headers.findIndex(h => h.toLowerCase().includes("description"));
-  
-      if (idIndex === -1 || descIndex === -1) return { headers: [], rows: [] };
-  
-      const taskRows = rows
-        .map(tr => {
-          const cells = [...tr.querySelectorAll("td")];
-          const id = cells[idIndex]?.innerText.trim() || "";
-          const desc = cells[descIndex]?.innerText.trim() || "";
-          return [id, desc];
-        })
-        .filter(r => r.some(cell => cell)); // remove empty rows
-  
-      return { headers: ["Task ID#", "Description"], rows: taskRows };
-  }
+      const tbl = ({ headers, rows }) => !rows?.length ? "<p>—</p>" : `
+        <div style='overflow:auto;border:1px solid #ccc;border-radius:6px;margin-top:8px;'>
+          <table style='border-collapse:collapse;width:100%'>
+            ${headers?.length ? `<thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>` : ""}
+            <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>
+          </table>
+        </div>`;
 
-  const data = rows
-    .map(tr => [...tr.querySelectorAll("td")].map(td => td.innerText.trim()))
-    .filter(r => r.length);
-  return { headers, rows: data };
-};
+      const reportBody = `
+        <div><strong>ID:</strong> ${data.id}</div>
+        <div><strong>Status:</strong> ${data.status}</div>
+        <div style="margin-top:10px;padding:10px;background:#f2f2f2;border-left:4px solid #0078d7;border-radius:4px;">
+          <strong>Description:</strong><br>${data.desc}
+        </div>
+        <div style="margin-top:8px;"><strong>Opened:</strong> ${data.open} &nbsp;&nbsp; <strong>Due:</strong> ${data.due} &nbsp;&nbsp; <strong>Done:</strong> ${data.done}</div>
+        ${tasks ? `<h3 style="margin-top:16px;">Tasks</h3>${tbl(tasks)}` : ""}
+        ${assets ? `<h3 style="margin-top:16px;">Assets</h3>${tbl(assets)}` : ""}
+        ${people ? `<h3 style="margin-top:16px;">Personnel</h3>${tbl(people)}` : ""}
+        <h3 style="margin-top:16px;">Comments</h3>
+        <div style="border:1px solid #ccc;border-radius:6px;padding:10px;margin-bottom:12px;">${data.comments}</div>
+        ${mediaData ? `<div><a href="${mediaData.FileName}" target="_blank" style="color:#0078d7;">📎 View Linked Media</a></div>` : ""}`;
 
-      // For other tables (asset, personnel): include all visible columns
-      const dataRows = rows
-        .map(tr => [...tr.querySelectorAll("td")].map(td => norm(td.innerText)).filter(Boolean))
-        .filter(r => r.length);
-      return { headers, rows: dataRows };
-    };
+      const overlay = document.createElement("div");
+      overlay.id = "reportOverlay";
+      Object.assign(overlay.style, {
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999,
+        display: "flex", justifyContent: "center", alignItems: "center"
+      });
 
-    const mediaData = Array.from(document.querySelectorAll(".media_check"))
-      .map(el => angular.element(el).scope()?.mediadetails)
-      .find(md => md && md.FileType?.toLowerCase() === "url");
+      const box = document.createElement("div");
+      box.style = "background:white;width:90%;max-width:950px;max-height:90vh;overflow-y:auto;padding:24px;border-radius:12px;";
+      box.innerHTML = `<h2>${type.toUpperCase()} REPORT</h2>` + reportBody +
+        `<div style="text-align:center;margin-top:20px;"><button onclick="document.getElementById('reportOverlay').remove()">Close</button></div>`;
 
-    const data = {
-      id: get("#ID"),
-      desc: get("#Description"),
-      status: get("#StatusDesc"),
-      open: get("#Open"),
-      due: get("#Due"),
-      done: get("#DateDone"),
-    };
-
-    const tasks = parseGrid("#TaskList", true);
-    const assets = parseGrid("#AssetList");
-    const people = parseGrid("#PersonalList");
-
-    const tbl = ({ headers, rows }) =>
-      !rows.length
-        ? "<p>—</p>"
-        : `<div style='overflow:auto;border:1px solid #ccc;border-radius:6px;margin-top:8px;'>
-            <table style='border-collapse:collapse;width:100%'>
-              <thead>${headers.length ? "<tr>" + headers.map(h => `<th>${h}</th>`).join("") + "</tr>" : ""}</thead>
-              <tbody>${rows.map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("")}</tbody>
-            </table>
-          </div>`;
-
-    // Clear old overlay
-    const old = document.getElementById("reportOverlay");
-    if (old) old.remove();
-
-    const overlay = document.createElement("div");
-    overlay.id = "reportOverlay";
-    Object.assign(overlay.style, {
-      position: "fixed",
-      inset: "0",
-      background: "rgba(0,0,0,0.45)",
-      zIndex: "999999",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      opacity: "0",
-      transition: "opacity 0.3s ease",
-    });
-
-    const box = document.createElement("div");
-    Object.assign(box.style, {
-      background: "white",
-      width: "90%",
-      maxWidth: "950px",
-      maxHeight: "90vh",
-      overflowY: "auto",
-      borderRadius: "12px",
-      fontFamily: "Arial, sans-serif",
-      boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-      padding: "24px",
-      position: "relative",
-      transform: "scale(0.95)",
-      transition: "transform 0.3s ease",
-    });
-
-    const closeX = document.createElement("div");
-    closeX.innerHTML = "&times;";
-    Object.assign(closeX.style, {
-      position: "absolute",
-      top: "10px",
-      right: "16px",
-      fontSize: "28px",
-      fontWeight: "bold",
-      color: "#666",
-      cursor: "pointer",
-      transition: "color 0.2s ease",
-    });
-    closeX.onmouseover = () => (closeX.style.color = "#000");
-    closeX.onmouseout = () => (closeX.style.color = "#666");
-
-    const header = `
-      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0078d7;padding-bottom:8px;margin-bottom:12px;">
-        <h2 style="margin:0;">Work Order Report</h2>
-        <img src="https://mpulse9.com//Media/GetMenuImage?DBName=SOFIE&ImageType=LOGOLG&ImageName=Sofie%20Logo.png" style="height:50px;">
-      </div>`;
-
-    const mediaSection = mediaData
-      ? `<h3 style="margin-top:16px;">Media</h3>
-         <div style="border:1px solid #ccc;border-radius:6px;padding:10px;margin-bottom:12px;">
-            <a href="${mediaData.FileName}" target="_blank" style="color:#0078d7;text-decoration:underline;font-size:16px;">View Linked Media</a>
-         </div>`
-      : "";
-
-    const body = `
-      <div><strong>ID:</strong> ${data.id}</div>
-      <div><strong>Status:</strong> ${data.status}</div>
-      <div style="margin-top:10px;padding:10px;background:#f2f2f2;border-left:4px solid #0078d7;border-radius:4px;">
-        <strong>Description:</strong><br>${data.desc}
-      </div>
-      <div style="margin-top:8px;"><strong>Opened:</strong> ${data.open} &nbsp;&nbsp; <strong>Due:</strong> ${data.due} &nbsp;&nbsp; <strong>Done:</strong> ${data.done}</div>
-      <h3 style="margin-top:16px;">Tasks</h3>${tbl(tasks)}
-      <h3 style="margin-top:16px;">Assets</h3>${tbl(assets)}
-      <h3 style="margin-top:16px;">Personnel</h3>${tbl(people)}
-      <h3 style="margin-top:16px;">Comments</h3>
-      <div style="border:1px solid #ccc;border-radius:6px;padding:10px;margin-bottom:12px;">${comments}</div>
-      ${mediaSection}
-      <div style="text-align:center;">
-        <button id="downloadPdf" style="background:#555;color:white;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;">Download PDF</button>
-        <button id="closeReport" style="margin-left:8px;padding:10px 20px;cursor:pointer;">Close</button>
-      </div>`;
-
-    box.innerHTML = header + body;
-    box.appendChild(closeX);
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-
-    requestAnimationFrame(() => {
-      overlay.style.opacity = "1";
-      box.style.transform = "scale(1)";
-    });
-
-    const closeOverlay = () => {
-      overlay.style.opacity = "0";
-      box.style.transform = "scale(0.95)";
-      setTimeout(() => overlay.remove(), 300);
-    };
-    closeX.onclick = closeOverlay;
-    document.getElementById("closeReport").onclick = closeOverlay;
-    document.addEventListener("keydown", e => e.key === "Escape" && closeOverlay(), { once: true });
-
-    if (!window.jspdf) {
-      await Promise.all([
-        new Promise((res, rej) => {
-          const s = document.createElement("script");
-          s.src = "https://cdn.jsdelivr.net/gh/dolivarez/mpulse-scripts@main/jspdf.umd.min.js";
-          s.onload = res; s.onerror = rej; document.head.appendChild(s);
-        }),
-        new Promise((res, rej) => {
-          const s = document.createElement("script");
-          s.src = "https://cdn.jsdelivr.net/gh/dolivarez/mpulse-scripts@main/html2canvas.min.js";
-          s.onload = res; s.onerror = rej; document.head.appendChild(s);
-        })
-      ]);
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
     }
 
-    document.getElementById("downloadPdf").onclick = async () => {
-      const { jsPDF } = window.jspdf;
-      const toHide = [closeX, document.getElementById("closeReport"), document.getElementById("downloadPdf")];
-      toHide.forEach(el => el && (el.style.display = "none"));
-
-      const canvas = await html2canvas(box, { scale: 2 });
-      const img = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const width = 210;
-      const height = (canvas.height * width) / canvas.width;
-      pdf.addImage(img, "PNG", 0, 0, width, height);
-
-      if (mediaData) {
-        pdf.setFontSize(12);
-        pdf.setTextColor(0, 102, 204);
-        pdf.textWithLink("View Linked Media", 15, height - 10, { url: mediaData.FileName });
-      }
-
-      pdf.save(`WorkOrder_${data.id || "Report"}.pdf`);
-      toHide.forEach(el => el && (el.style.display = ""));
-    };
-  }
-
-  async function addReportButton() {
-    const toolbar = findToolbar();
+    const toolbar = await waitForToolbar().catch(console.warn);
     if (!toolbar || document.getElementById("generateReportBtn")) return;
-    console.log("✅ Toolbar found");
 
     const li = document.createElement("li");
     li.id = "generateReportBtn";
     li.className = "ng-scope";
-    li.title = "Generate Work Order Report";
-    const link = document.createElement("a");
-    link.style.cursor = "pointer";
-    const icon = document.createElement("i");
-    icon.className = "fas fa-file-pdf";
-    link.appendChild(icon);
-    li.appendChild(link);
+    li.title = "Generate Report";
+    const a = document.createElement("a");
+    a.style.cursor = "pointer";
+    a.innerHTML = `<i class="fas fa-file-pdf"></i>`;
+    a.onclick = generateReport;
+    li.appendChild(a);
     toolbar.appendChild(li);
-    li.addEventListener("click", generateReport);
   }
 
-  try {
-    await waitForToolbar();
-    addReportButton();
-  } catch {
-    console.warn("⚠️ Toolbar not found initially, observing...");
-  }
-
-  new MutationObserver(() => addReportButton())
-    .observe(document.body, { childList: true, subtree: true });
+  init();
 })();
-
