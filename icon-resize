@@ -1,0 +1,29 @@
+(function() {
+  const selector = "#rightBlock falformview .itemDetailPIcture";
+
+  function applyResize() {
+    const el = document.querySelector(selector);
+    if (!el) return false;
+
+    // Auto-resize settings
+    el.style.width = "350px";      // adjust width
+    el.style.height = "auto";      // maintain image aspect ratio if image inside
+    el.style.maxHeight = "300px";  // optional safety limit
+    el.style.objectFit = "contain";
+    el.style.overflow = "hidden";
+
+    return true;
+  }
+
+  // If immediately available, resize
+  if (applyResize()) return;
+
+  // Otherwise wait for MPulse dynamically loaded UI
+  const observer = new MutationObserver(() => {
+    if (applyResize()) {
+      observer.disconnect();
+    }
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
