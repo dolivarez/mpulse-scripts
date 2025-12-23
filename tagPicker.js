@@ -1,4 +1,4 @@
-(async function () {
+(function () {
 
   /* ================= CLEANUP ================= */
   document.getElementById("mpulseTagHoverPanel")?.remove();
@@ -19,20 +19,6 @@
   /* ================= CONFIG ================= */
   const FIELD_MODEL = "CustomFields.OBJ_840";
 
-  // 🔴 EDIT THIS PATH ONLY
-  const TAG_CONFIG_URL =
-    "https://raw.githubusercontent.com/dolivarez/mpulse-scripts/main/inventoryTags.json";
-
-  /* ================= FALLBACK CONFIG ================= */
-  const FALLBACK_TAG_CONFIG = {
-    Cyclotron: {
-      PETtrace800: {
-        label: "GE PETtrace 800",
-        subsystems: ["Ion Source"]
-      }
-    }
-  };
-
   /* ================= NORMALIZATION ================= */
   function normalizeLine(str) {
     return str
@@ -48,9 +34,21 @@
       .find(e => e.element?.getAttribute("fieldname") === FIELD_MODEL);
   }
 
+  // ✅ FULLY SAFE READ-ONLY LOCK
   function lockEditor(ed) {
     if (!ed) return;
-    ed.on("instanceReady", () => ed.setReadOnly(true));
+
+    // Editor exists but not ready yet
+    if (typeof ed.setReadOnly !== "function") {
+      ed.once("instanceReady", () => {
+        if (typeof ed.setReadOnly === "function") {
+          ed.setReadOnly(true);
+        }
+      });
+      return;
+    }
+
+    // Editor already ready
     ed.setReadOnly(true);
   }
 
@@ -62,27 +60,18 @@
 
   lockEditor(editor);
 
-  /* ================= LOAD TAG CONFIG ================= */
-  async function loadTagConfig() {
-    const res = await fetch(TAG_CONFIG_URL, { cache: "no-store" });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-    return await res.json();
-  }
+  // /* ================= LOAD TAG CONFIG (CSP SAFE) ================= */
+  // if (!window.MPULSE_TAG_CONFIG || !window.MPULSE_TAG_CONFIG.tags) {
+  //   console.error("❌ MPULSE_TAG_CONFIG not found. inventoryTags.js not loaded.");
+  //   return;
+  // }
 
-  let TAG_CONFIG;
-  let TAG_VERSION = "";
+  const TAG_CONFIG = "https://raw.githubusercontent.com/dolivarez/mpulse-scripts/main/inventoryTags.json";
+  const TAG_VERSION = window.MPULSE_TAG_CONFIG.version || "";
 
-  try {
-    const configData = await loadTagConfig();
-    TAG_CONFIG = configData.tags;        // ✅ IMPORTANT
-    TAG_VERSION = configData.version || "";
-    console.log(`✔ Loaded tag config v${TAG_VERSION}`);
-  } catch (err) {
-    console.warn("⚠ Failed to load tag config, using fallback:", err.message);
-    TAG_CONFIG = FALLBACK_TAG_CONFIG;
-  }
+  console.log(
+    `✔ Tag config loaded from JS${TAG_VERSION ? " v" + TAG_VERSION : ""}`
+  );
 
   /* ================= STATE ================= */
   let selections = new Set();
@@ -273,7 +262,8 @@
   panel.querySelector("#tagSearch").addEventListener("input", e => {
     const q = e.target.value.toLowerCase();
     tagEls.forEach(t => {
-      t.style.display = t.dataset.line.toLowerCase().includes(q) ? "" : "none";
+      t.style.display =
+        t.dataset.line.toLowerCase().includes(q) ? "" : "none";
     });
   });
 
@@ -310,6 +300,6 @@
   /* ================= INIT ================= */
   loadFromEditor();
 
-  console.log("✅ Tag Picker v1.3.2 loaded (GitHub config, Inventory-only)");
+  console.log("✅ Tag Picker v1.3.4 loaded (CKEditor-safe, CSP-safe)");
 
 })();
