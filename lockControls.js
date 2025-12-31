@@ -150,8 +150,8 @@ function toggleCopyRecordByType() {
     /* ---- Always hidden (business rules) ---- */
     const alwaysHide = [
       "#rightBlock .commentsTitle h3 span.pull-right.pointer", // comment edit icon
-      "#PersonalList ul li div", // personnel ellipsis
-      "#AssetList ul li div"     // asset ellipsis
+      // "#PersonalList ul li div", // personnel ellipsis
+      // "#AssetList ul li div"     // asset ellipsis
     ];
 
     alwaysHide.forEach(sel => {
@@ -205,3 +205,4 @@ function toggleCopyRecordByType() {
     });
 
 })();
+
