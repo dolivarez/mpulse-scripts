@@ -226,6 +226,7 @@
             "O18": {
                 label: "O18 Water Apparatus",
                 subsystems: ["General"]
+            },
         },
 
         Dispensing: {
