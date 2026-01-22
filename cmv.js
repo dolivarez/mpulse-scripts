@@ -1,5 +1,5 @@
 /* ============================================================
- * CMV v3.2 — Custom Media Viewer for MPulse
+ * CMV v3.3 — Custom Media Viewer for MPulse
  * Author: Daniel Olivarez
  * Mode: Readable Full Source (for GitHub)
  * Build: 2025-11-13
@@ -960,27 +960,18 @@
 
 })();  /* END OF CMV v3.2 MAIN WRAPPER */
 
-/* ============================================================
- * 23) FINAL WATCHDOG (MOBILE + DESKTOP)
- * Ensures toggle always attaches even if MPulse re-renders tab
- * ============================================================ */
-
-const __cmvObserver = new MutationObserver(() => {
-  cmvLocatePanelSlot();
-});
-__cmvObserver.observe(document.body, { childList: true, subtree: true });
-
 
 /* ============================================================
- * 24) EXPORT DIAGNOSTIC (Optional)
+ * 23) EXPORT DIAGNOSTIC (Optional)
  * Lets you verify CMV version from console:
  *     window.CMV_VERSION
  * ============================================================ */
-window.CMV_VERSION = "3.2";
+window.CMV_VERSION = "3.3";
 
 /* ============================================================
  * END CMV v3.2
  * ============================================================ */
 ;
+
 
 
