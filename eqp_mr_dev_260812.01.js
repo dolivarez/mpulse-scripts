@@ -1,7 +1,13 @@
 (function () {
   "use strict";
 
-  const BUTTON_ID = "mpulse-create-request-btn";
+  const SCRIPT_VERSION = "0.2.0";
+
+  const BUTTON_ID = "toolbarCreateRequestButton";
+  const BUTTON_TITLE = "Create Request";
+
+  const ACTION_MENU_SELECTOR =
+    ".action-menu-items ul.itemDetailActionBtns";
 
   const ALLOWED = {
     EquipmentRecords: "Equipment Records",
@@ -9,53 +15,32 @@
     BuildingRecords: "Building Records"
   };
 
+  function log(...args) {
+    console.log(
+      `[${BUTTON_ID} v${SCRIPT_VERSION}]`,
+      ...args
+    );
+  }
+
   function getCurrentRecordType() {
     try {
-      const root = angular.element(document.body).scope()?.$root;
-      const subModule = String(root?.SubModuleName || "");
+      const root =
+        angular.element(document.body).scope()?.$root;
 
-      if (ALLOWED[subModule]) {
-        return ALLOWED[subModule];
-      }
+      const subModule =
+        String(root?.SubModuleName || "");
 
-      if (subModule) {
-        return null;
-      }
-    } catch (e) {}
+      return ALLOWED[subModule] || null;
 
-    // Narrow fallback only.
-    const candidates = [
-      ...document.querySelectorAll("h1, h2, h3, .page-title")
-    ].filter(el => {
-      const style = getComputedStyle(el);
-
-      return (
-        style.display !== "none" &&
-        style.visibility !== "hidden"
-      );
-    });
-
-    for (const el of candidates) {
-      const text = (el.textContent || "").trim();
-
-      if (text === "Equipment Records") {
-        return "Equipment Records";
-      }
-
-      if (text === "Room Records") {
-        return "Room Records";
-      }
-
-      if (text === "Building Records") {
-        return "Building Records";
-      }
+    } catch (err) {
+      return null;
     }
-
-    return null;
   }
 
   function getRecordScope() {
-    const matches = [...document.querySelectorAll(".ng-scope")]
+    const matches = [
+      ...document.querySelectorAll(".ng-scope")
+    ]
       .map(el => ({
         el,
         scope: angular.element(el).scope()
@@ -82,7 +67,7 @@
 
     if (!recordType) {
       console.warn(
-        "[Create Request] Not on an allowed record type."
+        "[Create Request] Unsupported record type."
       );
       return;
     }
@@ -98,203 +83,430 @@
 
     const link = document.createElement("a");
 
-    link.setAttribute("viewtypes", "CreateMR");
-    link.setAttribute("actiontag", "CreateMR");
-    link.setAttribute("title", "Create Request");
+    link.setAttribute(
+      "viewtypes",
+      "CreateMR"
+    );
+
+    link.setAttribute(
+      "actiontag",
+      "CreateMR"
+    );
+
+    link.setAttribute(
+      "title",
+      "Create Request"
+    );
 
     scope.moreProcedureClick({
       target: link,
       currentTarget: link,
+
       preventDefault() {},
+
       stopPropagation() {}
     });
   }
 
-  function removeButton() {
-    document.getElementById(BUTTON_ID)?.remove();
+  function createButton() {
+    const button =
+      document.createElement("button");
+
+    button.type = "button";
+    button.id = BUTTON_ID;
+    button.title = BUTTON_TITLE;
+
+    button.setAttribute(
+      "aria-label",
+      BUTTON_TITLE
+    );
+
+    button.innerHTML =
+      `<i class="far fa-file-alt"
+          aria-hidden="true"></i>`;
+
+    /*
+     * Match the working Equipment Email button.
+     */
+    button.style.setProperty(
+      "display",
+      "inline-flex",
+      "important"
+    );
+
+    button.style.setProperty(
+      "align-items",
+      "center",
+      "important"
+    );
+
+    button.style.setProperty(
+      "justify-content",
+      "center",
+      "important"
+    );
+
+    button.style.setProperty(
+      "width",
+      "24px",
+      "important"
+    );
+
+    button.style.setProperty(
+      "height",
+      "24px",
+      "important"
+    );
+
+    button.style.setProperty(
+      "min-width",
+      "24px",
+      "important"
+    );
+
+    button.style.setProperty(
+      "min-height",
+      "24px",
+      "important"
+    );
+
+    button.style.setProperty(
+      "padding",
+      "0",
+      "important"
+    );
+
+    button.style.setProperty(
+      "margin",
+      "0",
+      "important"
+    );
+
+    button.style.setProperty(
+      "background",
+      "transparent",
+      "important"
+    );
+
+    button.style.setProperty(
+      "background-color",
+      "transparent",
+      "important"
+    );
+
+    button.style.setProperty(
+      "border",
+      "none",
+      "important"
+    );
+
+    button.style.setProperty(
+      "border-radius",
+      "0",
+      "important"
+    );
+
+    button.style.setProperty(
+      "box-shadow",
+      "none",
+      "important"
+    );
+
+    button.style.setProperty(
+      "outline",
+      "none",
+      "important"
+    );
+
+    button.style.setProperty(
+      "appearance",
+      "none",
+      "important"
+    );
+
+    button.style.setProperty(
+      "-webkit-appearance",
+      "none",
+      "important"
+    );
+
+    button.style.setProperty(
+      "cursor",
+      "pointer",
+      "important"
+    );
+
+    button.style.setProperty(
+      "color",
+      "#666",
+      "important"
+    );
+
+    button.style.setProperty(
+      "line-height",
+      "1",
+      "important"
+    );
+
+    button.style.setProperty(
+      "font-size",
+      "0",
+      "important"
+    );
+
+    button.style.setProperty(
+      "vertical-align",
+      "middle",
+      "important"
+    );
+
+    const icon =
+      button.querySelector("i");
+
+    icon.style.setProperty(
+      "font-size",
+      "15px",
+      "important"
+    );
+
+    icon.style.setProperty(
+      "line-height",
+      "1",
+      "important"
+    );
+
+    icon.style.setProperty(
+      "display",
+      "inline-block",
+      "important"
+    );
+
+    icon.style.setProperty(
+      "margin",
+      "0",
+      "important"
+    );
+
+    icon.style.setProperty(
+      "padding",
+      "0",
+      "important"
+    );
+
+    icon.style.setProperty(
+      "color",
+      "#666",
+      "important"
+    );
+
+    icon.style.setProperty(
+      "pointer-events",
+      "none",
+      "important"
+    );
+
+    button.addEventListener(
+      "mouseenter",
+      () => {
+        icon.style.setProperty(
+          "color",
+          "#0078d7",
+          "important"
+        );
+      }
+    );
+
+    button.addEventListener(
+      "mouseleave",
+      () => {
+        icon.style.setProperty(
+          "color",
+          "#666",
+          "important"
+        );
+      }
+    );
+
+    button.addEventListener(
+      "click",
+      evt => {
+        evt.preventDefault();
+        evt.stopPropagation();
+
+        createRequest();
+      }
+    );
+
+    return button;
   }
 
-  function isVisible(el) {
-    if (!el) return false;
-  
-    const rect = el.getBoundingClientRect();
-    const style = getComputedStyle(el);
-  
-    return (
-      rect.width > 0 &&
-      rect.height > 0 &&
-      style.display !== "none" &&
-      style.visibility !== "hidden"
-    );
+  function removeButton() {
+    document
+      .querySelectorAll(
+        `#${BUTTON_ID}`
+      )
+      .forEach(button => {
+        button.closest("li")?.remove();
+      });
   }
-  
-  function findButtonTarget() {
-    // Prefer the toolbar containing the visible Email action.
-    const emailButtons = [
-      ...document.querySelectorAll("#toolbarEquipmentEmailButton")
-    ];
-  
-    const visibleEmail = emailButtons.find(isVisible);
-  
-    if (visibleEmail) {
-      return visibleEmail.closest("ul");
-    }
-  
-    // Next preference: toolbar containing the visible PDF action.
-    const pdfButtons = [
-      ...document.querySelectorAll("#generateReportBtn")
-    ];
-  
-    const visiblePdf = pdfButtons.find(isVisible);
-  
-    if (visiblePdf) {
-      return visiblePdf.closest("ul");
-    }
-  
-    // Desktop fallback.
-    const toolbars = [
-      ...document.querySelectorAll("ul.itemDetailActionBtns")
-    ];
-  
-    return toolbars.find(isVisible) || null;
-  }
-  
-  function syncButton() {
-    const recordType = getCurrentRecordType();
-  
+
+  function injectButton() {
+    const recordType =
+      getCurrentRecordType();
+
+    /*
+     * Remove it when leaving an allowed
+     * record module.
+     */
     if (!recordType) {
       removeButton();
-      return;
+      return false;
     }
-  
+
+    /*
+     * Require an actual current record.
+     */
     if (!getRecordScope()) {
       removeButton();
-      return;
+      return false;
     }
-  
-    const target = findButtonTarget();
 
-    if (!target) {
-      removeButton();
-      return;
+    const actionMenu =
+      document.querySelector(
+        ACTION_MENU_SELECTOR
+      );
+
+    if (!actionMenu) {
+      return false;
     }
-    
-    // Is our button already in THIS visible toolbar?
-    const existing = document.getElementById(BUTTON_ID);
-    
+
+    /*
+     * Already injected into current menu.
+     */
+    const existing =
+      document.getElementById(
+        BUTTON_ID
+      );
+
     if (existing) {
-      if (target.contains(existing)) {
-        return;
+      if (
+        actionMenu.contains(existing)
+      ) {
+        return true;
       }
-    
-      // Button exists in a hidden/old toolbar.
-      existing.remove();
+
+      existing.closest("li")?.remove();
     }
-  
-    if (!target) {
-      removeButton();
-      return;
-    }
-  
-    // Create a native-style toolbar <li>
-    const item = document.createElement("li");
-  
-    item.id = BUTTON_ID;
-    item.title = "Create Request";
-    item.style.listStyle = "none";
-  
-    const wrapper = document.createElement("div");
-    wrapper.className = "icon_target";
-  
-    const link = document.createElement("a");
-    link.className = "right";
-    link.href = "";
-    link.title = "Create Request";
-    link.setAttribute("aria-label", "Create Request");
-  
-    const span = document.createElement("span");
-  
-    const icon = document.createElement("i");
-    icon.className = "far fa-file-alt";
-    icon.setAttribute("aria-hidden", "true");
-  
-    span.appendChild(icon);
-    link.appendChild(span);
-    wrapper.appendChild(link);
-    item.appendChild(wrapper);
-  
-    link.addEventListener("click", e => {
-      e.preventDefault();
-      e.stopPropagation();
-      createRequest();
-    });
-  
-    const emailButtons = [
-      ...target.querySelectorAll("#toolbarEquipmentEmailButton")
-    ];
-    
-    const visibleEmail = emailButtons.find(isVisible);
-    
-    const emailItem = visibleEmail?.closest("li");
-    
-    const pdfItem =
-      [...target.querySelectorAll("#generateReportBtn")]
-        .find(isVisible);
-    
-    const moreItem =
-      [...target.querySelectorAll(".scheduled_dropdown")]
-        .map(el => el.closest("li"))
-        .find(isVisible);
-    
-    if (emailItem) {
-    
-      // Create Request | Email | PDF
-      target.insertBefore(item, emailItem);
-    
-    } else if (pdfItem) {
-    
-      target.insertBefore(item, pdfItem);
-    
-    } else if (moreItem) {
-    
-      moreItem.insertAdjacentElement("afterend", item);
-    
-    } else {
-    
-      target.prepend(item);
-    }
-  
-    console.log(
-      `[Create Request] Added on ${recordType}`
+
+    const li =
+      document.createElement("li");
+
+    li.dataset.createRequestItem = "true";
+
+    li.style.setProperty(
+      "list-style",
+      "none",
+      "important"
     );
+
+    li.style.setProperty(
+      "margin",
+      "0 6px 0 0",
+      "important"
+    );
+
+    li.style.setProperty(
+      "padding",
+      "0",
+      "important"
+    );
+
+    li.style.setProperty(
+      "display",
+      "inline-flex",
+      "important"
+    );
+
+    li.style.setProperty(
+      "align-items",
+      "center",
+      "important"
+    );
+
+    li.style.setProperty(
+      "visibility",
+      "visible",
+      "important"
+    );
+
+    li.appendChild(
+      createButton()
+    );
+
+    /*
+     * Put Create Request immediately
+     * before Email when available.
+     */
+    const emailButton =
+      actionMenu.querySelector(
+        "#toolbarEquipmentEmailButton"
+      );
+
+    const emailItem =
+      emailButton?.closest("li");
+
+    if (emailItem) {
+      actionMenu.insertBefore(
+        li,
+        emailItem
+      );
+    } else {
+      actionMenu.appendChild(li);
+    }
+
+    log(
+      `Injected on ${recordType}`
+    );
+
+    return true;
   }
 
-  // Clean up anything left by an older test.
-  removeButton();
+  function sync() {
+    injectButton();
+  }
 
-  // Initial render.
-  syncButton();
+  /*
+   * Initial injection.
+   */
+  sync();
 
-  // MPulse SPA navigation/render monitoring.
+  /*
+   * MPulse is an SPA, so continue checking as
+   * the active record/module is re-rendered.
+   */
   let pending = false;
 
-  const observer = new MutationObserver(() => {
-    if (pending) return;
+  const observer =
+    new MutationObserver(() => {
+      if (pending) return;
 
-    pending = true;
+      pending = true;
 
-    requestAnimationFrame(() => {
-      pending = false;
-      syncButton();
+      requestAnimationFrame(() => {
+        pending = false;
+        sync();
+      });
     });
-  });
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
+  observer.observe(
+    document.body,
+    {
+      childList: true,
+      subtree: true
+    }
+  );
 
-  console.log(
-    "[Create Request] Injector active for Equipment, Room, and Building Records."
+  log(
+    "Injector active for Equipment, Room, and Building Records."
   );
 })();
