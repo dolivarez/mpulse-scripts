@@ -1,5 +1,5 @@
 (function () {
-  const SCRIPT_VERSION = "1.1.6";
+  const SCRIPT_VERSION = "1.1.10";
   const BUTTON_ID = "toolbarMaintenanceRequestEmailButton";
   const BUTTON_TITLE = "Draft maintenance request email / copy formatted email";
   const ACTION_MENU_SELECTOR = ".action-menu-items ul.itemDetailActionBtns";
@@ -22,18 +22,33 @@
     console.log(`[${BUTTON_ID} v${SCRIPT_VERSION}]`, ...args);
   }
 
+  function requestIdText(value) {
+    const text = normalizeText(value);
+    const match = text.match(/^(?:ID\s*#?\s*:?\s*)?(WRQ-\d+)$/i);
+    return match ? match[1].toUpperCase() : "";
+  }
+
+  function recordIdentityNodes() {
+    const eligible = node => node.getClientRects().length &&
+      !node.closest("#" + MODAL_ID) &&
+      !node.closest(".dx-datagrid, .dx-treelist, [role='grid'], .dx-data-row, [role='row']");
+    // Explicit record fields take precedence over mobile header text.
+    const fields = [...document.querySelectorAll("#ID, #REQID, #WRQID")]
+      .filter(node => eligible(node) && requestIdText(node.value || node.textContent));
+    if (fields.length) return fields;
+    // Require the ID label: bare WRQ identifiers elsewhere on the page are not form identity.
+    return [...document.querySelectorAll("span, label, strong, b, div, h2, h3, h4")]
+      .filter(node => eligible(node) && /^ID\s*#?\s*:?\s*WRQ-\d+$/i.test(normalizeText(node.textContent)));
+  }
+
   function visibleRecordId() {
-    const nodes = document.querySelectorAll("#ID, #REQID, #WRQID");
-    for (const node of nodes) {
-      if (!node.getClientRects().length) continue;
-      const value = normalizeText(node.value || node.textContent);
-      if (value) return value;
-    }
-    return getDisplayValueByLabel("ID#") || getDisplayValueByLabel("ID #") || "";
+    // Mobile renders the ID as header text rather than the desktop field.
+    const ids = [...new Set(recordIdentityNodes().map(node => requestIdText(node.value || node.textContent)))];
+    return ids.length === 1 ? ids[0] : "";
   }
 
   function objectRecordId(obj) {
-    return normalizeText(obj?.RecordId ?? obj?.RequestID ?? obj?.WorkRequestID ?? obj?.MRID ?? obj?.RecordID);
+    return requestIdText(obj?.RecordId ?? obj?.RequestID ?? obj?.WorkRequestID ?? obj?.MRID ?? obj?.RecordID);
   }
 
   // Resolve from the displayed form first; the body scope can retain an earlier selection.
@@ -43,20 +58,24 @@
       const route = parseRequestUrl(location.href);
       const candidates = [];
       const seen = new Set();
-      const nodes = [...document.querySelectorAll("#ID, #REQID, #WRQID, #Description, .ng-scope, " + ACTION_MENU_SELECTOR)]
+      const nodes = [...recordIdentityNodes(), ...document.querySelectorAll("#ID, #REQID, #WRQID, #Description, .ng-scope, " + ACTION_MENU_SELECTOR)]
         .filter(node => node.getClientRects().length);
       nodes.push(document.body);
       for (const node of nodes) {
         let scope = window.angular?.element(node).scope();
         for (let depth = 0; scope && depth < 12 && !seen.has(scope); depth++, scope = scope.$parent) {
           seen.add(scope);
-          for (const obj of [scope.selectedRecord, scope.SelectedObject, scope.listviewlayouts?.SelectedObject]) {
+          for (const obj of [scope.selectedRecord, scope.SelectedObject, scope.listviewlayouts?.SelectedObject, ...(Array.isArray(scope.dxValue) ? scope.dxValue : [])]) {
             if (obj && !candidates.includes(obj)) candidates.push(obj);
           }
         }
       }
       // Never use a selection whose displayed request ID belongs to a different record.
-      if (id) return candidates.find(obj => objectRecordId(obj) === id) || null;
+      if (id) {
+        const matches = candidates.filter(obj => objectRecordId(obj) === id);
+        const keys = [...new Set(matches.map(obj => String(obj.RecordKey ?? obj.recordKey ?? obj.SelectedRecordKey ?? "")).filter(key => /^[1-9]\d*$/.test(key)))];
+        return keys.length === 1 ? matches.find(obj => String(obj.RecordKey ?? obj.recordKey ?? obj.SelectedRecordKey) === keys[0]) : null;
+      }
       if (route) return candidates.find(obj => String(obj.RecordKey ?? obj.recordKey ?? obj.SelectedRecordKey) === route.key) || null;
       return candidates[0] || null;
     } catch { return null; }
@@ -68,6 +87,11 @@
     const result = {
       version: SCRIPT_VERSION,
       displayedId: visibleRecordId(),
+      visibleIds: [...new Set(recordIdentityNodes().map(node => requestIdText(node.value || node.textContent)))],
+      route: parseRequestUrl(location.href),
+      angularAvailable: !!window.angular,
+      specificAsset: getSpecificAssetResult(),
+      legacyAssetDescription: normalizeText(obj?.WKRQSTCADesc || obj?.wkrqstcadesc),
       resolved: obj ? { RecordId: obj.RecordId, RecordKey: obj.RecordKey,
         RecordFlag: obj.RecordFlag, RequestStatusDesc: obj.RequestStatusDesc } : null,
       generatedUrl: buildRequestUrl()
@@ -332,17 +356,44 @@
     );
   }
 
+  function getSpecificAssetResult() {
+    const visible = node => !!node.getClientRects().length && !node.closest("#" + MODAL_ID);
+    const labels = [...document.querySelectorAll("label, .dx-field-item-label-text, .fal-form-label, .control-label, span")]
+      .filter(node => visible(node) && /^specific asset\s*:?$/i.test(normalizeText(node.textContent)));
+    const values = new Set();
+    for (const label of labels) {
+      // Stay within a field container; never search the entire form for an asset link.
+      const linked = label.getAttribute("for");
+      const control = linked ? document.getElementById(linked) : null;
+      if (control && visible(control)) {
+        const value = cleanLookup(control.value || control.textContent);
+        if (value) values.add(value);
+      }
+      const container = label.closest(".dx-field-item, .form-group, .row, tr") || label.parentElement;
+      if (!container) continue;
+      const links = [...container.querySelectorAll("a")].filter(visible)
+        .map(node => cleanLookup(node.textContent)).filter(Boolean);
+      // Multiple links with text make the field ambiguous. Icon-only edit links are ignored.
+      if (links.length === 1) values.add(links[0]);
+      else if (links.length > 1) return { value: "", reason: "Multiple asset links in the field" };
+      if (!links.length) {
+        const inputs = [...container.querySelectorAll("input, select")].filter(visible);
+        if (inputs.length === 1) {
+          const input = inputs[0];
+          const value = cleanLookup(input.tagName === "SELECT" ? input.selectedOptions?.[0]?.textContent : input.value);
+          if (value) values.add(value);
+        }
+      }
+    }
+    return values.size === 1 ? { value: [...values][0], reason: "Specific Asset field" } :
+      { value: "", reason: values.size ? "Conflicting Specific Asset values" : "Specific Asset field unavailable or empty" };
+  }
+
   function getAssetSummary() {
-    const obj = getRequestObj();
-
-    const singleAsset = cleanLookup(
-      obj?.WKRQSTCADesc ||
-      obj?.wkrqstcadesc ||
-      obj?.WKRQSTCADesc ||
-      ""
-    );
-
-    return singleAsset ? [singleAsset] : [];
+    // WKRQSTCADesc can disagree with the current Specific Asset lookup.
+    // Omit an unverified asset rather than reuse that legacy description.
+    const result = getSpecificAssetResult();
+    return result.value ? [result.value] : [];
   }
 
   function normalizeRequestFlag(value) {
@@ -487,11 +538,15 @@
 
   function getDraft(modal) {
     const currentId = visibleRecordId();
-    if (currentId && modal.requestData.id && currentId !== normalizeText(modal.requestData.id)) {
+    const currentLink = buildRequestUrl();
+    if (!currentId || !currentLink || !modal.requestData.link) {
+      throw new Error("Unable to verify the open request. Open the request detail form, then close and reopen the email dialog.");
+    }
+    if (currentId !== requestIdText(modal.requestData.id) || currentLink !== modal.requestData.link) {
       throw new Error("The selected request changed. Close and reopen the email dialog for the current request.");
     }
     const data = { ...modal.requestData, link: validateRecordUrl(modal.requestData.link) };
-    if (!data.link) throw new Error("Unable to verify this request's internal key. Run MPulseRequestEmailDiagnostics() in the console and share the result.");
+    if (!data.link) throw new Error("Unable to verify this request's internal key. Refresh the record, then close and reopen the email dialog.");
     const key = modal.dataset.selectedTemplate || "information";
     const context = modal.querySelector("#requestContextInput").value.trim();
     if (key === "information" && !context) throw new Error("List the information needed in Additional context.");
